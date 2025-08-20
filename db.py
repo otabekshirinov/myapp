@@ -2,33 +2,41 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from dotenv import load_dotenv
 
-# Загружаем переменные окружения из .env (если есть)
-load_dotenv()
+Base = declarative_base()
 
-# Берём строку подключения из .env (рекомендуется), иначе используем дефолт ниже
-DB_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg2://neondb_owner:npg_bRgMocauH25U@ep-curly-bird-a228n5ay-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require"
-)
+def _normalize_url(url: str) -> str:
+    """Делаем URL совместимым с SQLAlchemy + psycopg (v3)."""
+    url = url.strip()
+    if url.startswith("postgres://"):
+        # старый префикс -> новый
+        url = url.replace("postgres://", "postgresql://", 1)
+    # если драйвер не указан — принудительно ставим psycopg (v3)
+    if url.startswith("postgresql://") and "+psycopg" not in url and "+psycopg2" not in url:
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    # если вдруг остался psycopg2 — заменим на psycopg
+    if url.startswith("postgresql+psycopg2://"):
+        url = url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+    return url
 
-# Создаём engine
+# БЕРЁМ ТОЛЬКО ИЗ ENV. (Не хардкодьте секреты в коде!)
+DB_URL = os.getenv("DATABASE_URL", "")
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL is not set. Укажите переменную окружения с DSN Neon.")
+
+DB_URL = _normalize_url(DB_URL)
+
 engine = create_engine(
     DB_URL,
     future=True,
-    echo=True,          # включи для дебага; можно выключить в проде
-    pool_pre_ping=True  # безопаснее для облака (reconnect при разрыве)
+    pool_pre_ping=True,
+    pool_recycle=300,
+    echo=os.getenv("SQL_ECHO", "0") == "1",
 )
 
-# Фабрика сессий
 SessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,
     autoflush=False,
-    # Чуть меньше шансов словить DetachedInstanceError при рендеринге шаблонов
-    expire_on_commit=False
+    expire_on_commit=False,
 )
-
-# База для моделей
-Base = declarative_base()
