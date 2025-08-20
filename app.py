@@ -1,6 +1,6 @@
 # app.py
 import os
-from flask import Flask, redirect, url_for, session, flash
+from flask import Flask, redirect, url_for, session
 
 # Загружаем .env (если есть)
 try:
@@ -14,7 +14,7 @@ from auth.routes import auth_bp
 from admin_tests.routes import tests_bp
 from user_tests.user_tests_bp import user_tests_bp
 
-# Для бутстрапа админа
+# БД / модели
 from werkzeug.security import generate_password_hash
 from db import SessionLocal, Base, engine
 from models import User
@@ -22,13 +22,11 @@ from models import User
 
 def ensure_default_admin() -> None:
     """
-    1) (Опционально) создаёт таблицы в БД
-       ENV: AUTO_CREATE_TABLES=1 (по умолчанию 1)
+    1) (Опционально) создаёт таблицы (AUTO_CREATE_TABLES=1, по умолчанию 1).
     2) Создаёт дефолтного админа, если ни одного ещё нет.
-       Логин/пароль/ФИО берём из ENV:
-         ADMIN_USERNAME (default 'admin')
-         ADMIN_PASSWORD (default 'admin')
-         ADMIN_FIO      (default 'Администратор')
+       ADMIN_USERNAME (default 'admin')
+       ADMIN_PASSWORD (default 'admin')
+       ADMIN_FIO      (default 'Администратор')
     """
     if os.getenv("AUTO_CREATE_TABLES", "1") == "1":
         try:
@@ -39,7 +37,6 @@ def ensure_default_admin() -> None:
 
     db = SessionLocal()
     try:
-        # Если есть хоть один админ — ничего не делаем
         any_admin = db.query(User).filter_by(is_admin=True).first()
         if any_admin:
             print("[BOOTSTRAP] Admin already exists — skip creating.")
@@ -49,7 +46,6 @@ def ensure_default_admin() -> None:
         password = (os.getenv("ADMIN_PASSWORD", "admin") or "admin").strip()
         fio      = (os.getenv("ADMIN_FIO", "Администратор") or "Администратор").strip()
 
-        # Если пользователь с таким логином есть — просто повышаем его до админа
         existing = db.query(User).filter_by(username=username).first()
         if existing:
             if not existing.is_admin:
@@ -60,7 +56,6 @@ def ensure_default_admin() -> None:
                 print(f"[BOOTSTRAP] User '{username}' is already admin.")
             return
 
-        # Создаём нового админа
         admin = User(
             fio=fio,
             username=username,
@@ -76,28 +71,35 @@ def ensure_default_admin() -> None:
         db.close()
 
 
-app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
+def create_app() -> Flask:
+    app = Flask(__name__)
+    app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 
-# Регистрируем blueprints
-app.register_blueprint(auth_bp)
-app.register_blueprint(tests_bp)
-app.register_blueprint(user_tests_bp)
+    # Регистрируем blueprints
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(tests_bp)
+    app.register_blueprint(user_tests_bp)
 
-# Бутстрапим БД и админа (безопасно при многократном запуске)
-ensure_default_admin()
+    # Бутстрапим БД/админа (идемпотентно, можно вызывать при каждом старте воркера)
+    ensure_default_admin()
+
+    @app.route("/")
+    def index():
+        if 'user_id' in session:
+            if session.get('is_admin'):
+                return redirect(url_for('tests.list_tests'))      # для админа
+            else:
+                return redirect(url_for('user_tests.list_tests')) # для пользователя
+        return redirect(url_for('auth.login'))
+
+    return app
 
 
-@app.route("/")
-def index():
-    if 'user_id' in session:
-        if session.get('is_admin'):
-            return redirect(url_for('tests.list_tests'))      # для админа
-        else:
-            return redirect(url_for('user_tests.list_tests')) # для пользователя
-    return redirect(url_for('auth.login'))
+# ВАЖНО: глобальный объект для Gunicorn
+app = create_app()
 
-
+# Локальный запуск (для разработки). Gunicorn этот блок не трогает.
 if __name__ == "__main__":
-    # debug=True — для разработки, уберите/поставьте False в проде
-    app.run(host="0.0.0.0", port=80, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=port, debug=debug)
