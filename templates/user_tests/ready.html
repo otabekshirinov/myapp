@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}{{ test.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-10 rounded-2xl shadow mt-16 flex flex-col items-center">
+  <h2 class="text-2xl font-bold mb-6 text-center">{{ test.title }}</h2>
+  {% if test.description %}
+    <p class="mb-5 text-gray-600 text-center">{{ test.description }}</p>
+  {% endif %}
+
+  {% if test.time_limit %}
+    <div class="mb-8 text-lg text-gray-800 font-semibold">
+      На выполнение: <span class="text-blue-700">{{ test.time_limit }}</span> мин.
+    </div>
+  {% else %}
+    <div class="mb-8 text-lg text-gray-500">Время на выполнение не ограничено</div>
+  {% endif %}
+
+  <a href="{{ url_for('user_tests.start_test', test_id=test.id) }}"
+     class="px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg shadow transition">
+    Приступить к тесту
+  </a>
+</div>
+{% endblock %}

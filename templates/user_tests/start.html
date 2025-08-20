@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}{{ test.title }}{% endblock %}
+
+{% block content %}
+<style>
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: fadeUp .45s ease forwards; opacity: 0; }
+
+  /* отступ для автопрокрутки — чтобы заголовок вопроса не прятался под navbar */
+  .qblock { scroll-margin-top: var(--nav-offset, 96px); }
+
+  /* подсветка выбранного варианта (современные браузеры) */
+  .opt:has(input:checked) {
+    outline: 2px solid rgba(99,102,241,.5);
+    background: rgba(99,102,241,.06);
+  }
+  /* фолбэк на старые браузеры — класс навешивается JS-ом */
+  .opt.selected {
+    outline: 2px solid rgba(99,102,241,.5);
+    background: rgba(99,102,241,.06);
+  }
+</style>
+
+<div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow mt-8">
+
+  <div class="flex items-start justify-between gap-4 mb-6">
+    <div>
+      <h2 class="text-2xl font-extrabold tracking-tight">{{ test.title }}</h2>
+      {% if test.description %}
+        <div class="text-gray-500 mt-1">{{ test.description }}</div>
+      {% endif %}
+    </div>
+
+    {% if remaining_seconds is not none and remaining_seconds > 0 %}
+    <div id="timer-block" class="shrink-0 px-3 py-2 rounded-xl bg-red-50 text-red-700 ring-1 ring-red-100">
+      <div class="text-xs uppercase tracking-wide">Осталось</div>
+      <div class="text-xl font-extrabold tabular-nums">
+        <span id="timer-minutes">00</span>:<span id="timer-seconds">00</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Прогресс -->
+  <div class="mb-6">
+    <div class="flex items-center justify-between text-sm text-gray-600 mb-1">
+      <span>Прогресс</span>
+      <span><b id="answeredCount">0</b> / {{ questions|length }}</span>
+    </div>
+    <div class="h-2 w-full bg-gray-100 rounded-full overflow-hidden ring-1 ring-gray-100">
+      <div id="progressBar" class="h-full w-0 bg-gradient-to-r from-blue-500 to-violet-600 transition-[width] duration-300"></div>
+    </div>
+  </div>
+
+  <form id="test-form" method="post" onsubmit="this.classList.add('submitted')" autocomplete="off">
+    {% for q in questions %}
+      <div class="mb-6 fade-up qblock" style="animation-delay: {{ (loop.index0 * 60) }}ms">
+        <div class="font-semibold mb-3">{{ loop.index }}. {{ q.text }}</div>
+
+        <div class="space-y-2">
+          {% for a in q.answers %}
+            <label class="opt flex items-center gap-3 p-2 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition">
+              <input type="radio"
+                     class="peer"
+                     name="question_{{ q.id }}"
+                     value="{{ a.id }}"
+                     data-qid="{{ q.id }}">
+              <span>{{ a.text }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
+    <button class="w-full bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700
+                   text-white rounded-xl py-3 font-semibold shadow-lg transition active:scale-[.99]">
+      Завершить тест
+    </button>
+  </form>
+</div>
+
+{% if remaining_seconds is not none %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // задаём CSS-переменную отступа для .qblock на основе реальной высоты навигации
+  const navH = (document.querySelector('nav')?.offsetHeight || 80) + 12; // + небольшой зазор
+  document.documentElement.style.setProperty('--nav-offset', navH + 'px');
+
+  // Таймер — сервер уже дал оставшиеся секунды
+  let remaining = {{ remaining_seconds|int }};
+  const minEl = document.getElementById('timer-minutes');
+  const secEl = document.getElementById('timer-seconds');
+  const form  = document.getElementById('test-form');
+  let interval;
+
+  function upd(){
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    if (minEl && secEl) {
+      minEl.textContent = (m < 10 ? "0" : "") + m;
+      secEl.textContent = (s < 10 ? "0" : "") + s;
+    }
+    if (remaining <= 0) {
+      clearInterval(interval);
+      if (!form.classList.contains('submitted')) {
+        form.classList.add('submitted');
+        form.submit(); // сервер корректно закроет попытку
+      }
+      return;
+    }
+    remaining -= 1;
+  }
+  upd();
+  interval = setInterval(upd, 1000);
+});
+</script>
+{% endif %}
+
+<script>
+(function(){
+  // Прогресс + автоскролл
+  const form = document.getElementById('test-form');
+  const inputs = Array.from(form.querySelectorAll('input[type="radio"]'));
+  const qIds = [...new Set(inputs.map(i => i.dataset.qid))];
+  const answered = new Set();
+  const answeredCountEl = document.getElementById('answeredCount');
+  const bar = document.getElementById('progressBar');
+
+  function updateProgress(){
+    answeredCountEl.textContent = String(answered.size);
+    const pct = Math.round((answered.size / qIds.length) * 100);
+    bar.style.width = pct + '%';
+  }
+
+  // аккуратная прокрутка с учётом высоты шапки
+  function smoothScrollTo(blockEl){
+    const navOffset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-offset')) || 96;
+    const y = blockEl.getBoundingClientRect().top + window.scrollY - navOffset;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }
+
+  inputs.forEach(inp => {
+    inp.addEventListener('change', () => {
+      answered.add(inp.dataset.qid);
+      updateProgress();
+
+      // JS-фолбэк подсветки: снимем .selected у соседей и поставим текущему
+      const name = inp.getAttribute('name');
+      form.querySelectorAll(`input[name="${name}"]`).forEach(r => r.closest('.opt')?.classList.remove('selected'));
+      inp.closest('.opt')?.classList.add('selected');
+
+      // автоскролл к следующему вопросу
+      const currentBlock = inp.closest('.mb-6');
+      const allBlocks = Array.from(form.querySelectorAll('.mb-6'));
+      const idx = allBlocks.indexOf(currentBlock);
+      const next = allBlocks[idx + 1];
+      if (next) smoothScrollTo(next);
+    });
+  });
+
+  updateProgress();
+})();
+</script>
+{% endblock %}

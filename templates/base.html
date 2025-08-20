@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth bg-[#f5f6fa]">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Quiz{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
+  <!-- Alpine -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    html { font-family: 'Inter','Segoe UI',Arial,sans-serif; }
+    ::-webkit-scrollbar{ width:8px; background:#edeef2;}
+    ::-webkit-scrollbar-thumb{ background:#a3a3c2; border-radius:10px;}
+    [x-cloak]{ display:none !important; }
+
+    /* фон: мягкие цветовые «пятна» + сетка */
+    .bg-ornaments{
+      pointer-events:none;
+      position:fixed; inset:0; z-index:-1;
+    }
+    .blob{
+      position:absolute; filter:blur(60px); opacity:.55;
+      transform:translate(-50%, -50%);
+    }
+    .blob-1{ left:18%; top:12%; width:520px; height:520px; background:radial-gradient(closest-side, #a5b4fc, rgba(165,180,252,0)); }
+    .blob-2{ left:82%; top:72%; width:560px; height:560px; background:radial-gradient(closest-side, #c4b5fd, rgba(196,181,253,0)); }
+    .grid-overlay{
+      position:absolute; inset:0;
+      background-image: radial-gradient(#e5e7eb 1px, transparent 1.2px);
+      background-size: 22px 22px;
+      opacity:.35;
+      mask-image: radial-gradient(circle at 50% 20%, black 0%, transparent 70%);
+    }
+
+    .logo-blur{ box-shadow:0 6px 30px 0 rgba(99,102,241,0.12); }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col text-gray-900" x-data>
+
+  <!-- фоновые украшения -->
+  <div class="bg-ornaments" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <!-- Навигация -->
+  <nav class="bg-white/90 backdrop-blur-md shadow-lg px-6 py-3 sticky top-0 z-40 border-b border-blue-100">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <!-- ЛОГО: ведёт в ЛК -->
+      <a
+        {% if session.get('user_id') %}
+          {% if session.get('is_admin') %}
+            href="{{ url_for('auth.admin_dashboard') }}"
+          {% else %}
+            href="{{ url_for('auth.user_dashboard') }}"
+          {% endif %}
+        {% else %}
+          href="{{ url_for('auth.login') }}"
+        {% endif %}
+        class="flex items-center gap-2 text-2xl font-black tracking-tight text-blue-700 hover:text-violet-700 transition"
+        title="В личный кабинет"
+      >
+        <span class="logo-blur bg-gradient-to-tr from-blue-500 to-violet-500 p-2 rounded-full">
+          <svg width="30" height="30" fill="none" viewBox="0 0 24 24" class="drop-shadow">
+            <circle cx="12" cy="12" r="10" fill="#6366f1"/>
+            <path d="M7 13.5L10.5 17L17 10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span>Quiz</span> <!-- хочешь вернуть старое имя — замени на TestApp -->
+      </a>
+
+      <div class="flex items-center gap-2 sm:gap-4">
+        {% if session.get('user_id') %}
+          <a
+            {% if session.get('is_admin') %}
+              href="{{ url_for('auth.admin_dashboard') }}"
+            {% else %}
+              href="{{ url_for('auth.user_dashboard') }}"
+            {% endif %}
+            class="hidden sm:inline-flex items-center gap-2 text-sm font-semibold text-gray-700 px-3 py-1.5 bg-white/70 border border-blue-100 rounded-xl hover:bg-white transition"
+            title="Личный кабинет"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5Z" fill="#334155"/>
+            </svg>
+            Кабинет
+          </a>
+          <span class="text-sm font-semibold text-gray-700 px-3 py-1.5 bg-gray-50 border border-blue-100 rounded-xl shadow-sm max-w-[200px] truncate">
+            {{ session.get('fio') }}
+          </span>
+          <a href="{{ url_for('auth.logout') }}"
+             class="text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded transition duration-100 hover:bg-red-50">
+            Выйти
+          </a>
+        {% else %}
+          <a href="{{ url_for('auth.login') }}"
+             class="text-blue-700 font-semibold hover:text-violet-700 px-3 py-1.5 transition hover:bg-blue-50 rounded">
+            Войти
+          </a>
+          <a href="{{ url_for('auth.register') }}"
+             class="ml-1 text-blue-700 font-semibold hover:text-violet-700 px-3 py-1.5 transition hover:bg-violet-50 rounded">
+            Регистрация
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- Основной контент -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-3 py-8 sm:px-6">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="mb-6 space-y-2">
+          {% for message in messages %}
+            <div class="flex items-center gap-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-900 px-5 py-3 rounded-xl shadow animate-fadeIn" x-cloak>
+              <svg width="22" height="22" fill="none" class="shrink-0" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" fill="#fde68a"/>
+                <path d="M12 8v4m0 4h.01" stroke="#b45309" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="bg-white/80 border-t border-gray-200 text-gray-500 text-sm text-center p-4 mt-auto shadow-inner">
+    <div class="max-w-7xl mx-auto">
+      <div class="font-semibold text-gray-700">
+        Quiz — приложение для оценки знаний (тесты, статистика, рандомные попытки)
+      </div>
+      <div class="mt-1">
+        &copy; {{ now().year if now else 2025 }} • by <span class="font-semibold text-blue-700">ok.shirinov</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- лёгкий fade-in для flash -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.animate-fadeIn').forEach(el => {
+        el.style.opacity = 0;
+        requestAnimationFrame(() => { el.style.transition = 'opacity .25s'; el.style.opacity = 1; });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Результаты: {{ test.title }}{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto pt-10">
+  <div class="flex items-center gap-4 mb-6">
+    <h1 class="text-3xl font-bold">Результаты теста "{{ test.title }}"</h1>
+    <a href="{{ url_for('tests.view_test', test_id=test.id) }}"
+       class="ml-auto px-4 py-1.5 rounded-lg bg-blue-100 text-blue-800 text-sm hover:bg-blue-200">← Назад к тесту</a>
+  </div>
+  <!-- Статистика -->
+  <div class="flex flex-wrap gap-8 items-center mb-4 text-lg">
+    <div>Всего участников: <span class="font-bold">{{ results|length }}</span></div>
+    <div>Средний балл: <span class="font-bold">
+      {% if results %}{{ (results | map(attribute='score') | sum / results|length) | round(2) }}{% else %}0{% endif %}
+    </span></div>
+    <div>Макс: <span class="font-bold">{{ max_score }}</span></div>
+    <div>Мин: <span class="font-bold">{% if results %}{{ results|min(attribute='score')|attr('score') }}{% else %}0{% endif %}</span></div>
+  </div>
+  <label class="flex items-center gap-2 mb-2 cursor-pointer select-none">
+    <input type="checkbox" id="show-failed" class="accent-pink-500">
+    Показать только не сдавших (&lt; 70%)
+  </label>
+  {% if results %}
+  <table class="w-full bg-white rounded-xl shadow mb-8">
+    <thead>
+      <tr class="text-left bg-gray-50">
+        <th class="px-4 py-3 rounded-tl-xl">Пользователь</th>
+        <th class="px-4 py-3 cursor-pointer" onclick="sortByScore()">Баллы <span id="sort-arrow">↓</span></th>
+        <th class="px-4 py-3">Время</th>
+        <th class="px-4 py-3 rounded-tr-xl"></th>
+      </tr>
+    </thead>
+    <tbody id="results-tbody">
+      {% for res in results %}
+        {% set is_failed = res.score < (0.7 * max_score) %}
+        <tr
+          class="border-t transition
+            {% if is_failed %}bg-red-50 hover:bg-red-100{% else %}bg-green-50 hover:bg-green-100{% endif %}"
+          data-score="{{ res.score }}"
+          data-failed="{{ '1' if is_failed else '0' }}"
+        >
+          <td class="px-4 py-3 font-semibold">{{ res.user.fio }}</td>
+          <td class="px-4 py-3 text-blue-800 font-bold">{{ res.score }}</td>
+          <td class="px-4 py-3 text-gray-700">
+            {% if res.passed_at and res.started_at %}
+              {% set duration = (res.passed_at - res.started_at).total_seconds()|int %}
+              {{ duration // 60 }} мин. {{ duration % 60 }} сек.
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <a href="{{ url_for('tests.view_result', result_id=res.id) }}" class="text-sm text-blue-600 hover:underline">Детали</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="text-gray-400 text-center py-12">Ещё никто не проходил этот тест.</div>
+  {% endif %}
+</div>
+
+<script>
+// Сортировка по баллам (по убыванию и возрастанию)
+let sortDesc = true;
+function sortByScore() {
+  const tbody = document.getElementById('results-tbody');
+  const rows = Array.from(tbody.rows);
+  rows.sort((a, b) => {
+    const av = parseFloat(a.dataset.score);
+    const bv = parseFloat(b.dataset.score);
+    return sortDesc ? bv - av : av - bv;
+  });
+  sortDesc = !sortDesc;
+  document.getElementById('sort-arrow').textContent = sortDesc ? "↓" : "↑";
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// Фильтр "только не сдавших"
+document.getElementById('show-failed').addEventListener('change', function() {
+  const showOnlyFailed = this.checked;
+  document.querySelectorAll('#results-tbody tr').forEach(tr => {
+    if (showOnlyFailed) {
+      tr.style.display = tr.dataset.failed === "1" ? "" : "none";
+    } else {
+      tr.style.display = "";
+    }
+  });
+});
+</script>
+{% endblock %}

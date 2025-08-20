@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Результат теста{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow mt-8">
+  <h2 class="text-2xl font-bold mb-4">Результат: «{{ result.test.title }}»</h2>
+  <p class="mb-4">Ваши баллы: <strong>{{ result.score }}</strong></p>
+  <p class="mb-6">
+    Пройдено за
+    {% if result.passed_at %}
+      {% set secs = (result.passed_at - result.started_at).total_seconds()|int %}
+      {% set mins = secs // 60 %}
+      {% set sec = secs % 60 %}
+      <b>{{ mins }}:{{ '%02d' % sec }}</b>
+    {% else %}
+      —
+    {% endif %}
+  </p>
+
+  {% if result.answers %}
+    <ol class="space-y-4">
+      {% for ua in result.answers %}
+        <li>
+          <p>{{ loop.index }}. {{ ua.question.text }}</p>
+          <p>Ваш ответ: <strong>{{ ua.answer.text }}</strong>
+             {% if ua.answer.is_correct %}✅{% else %}❌{% endif %}
+          </p>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="text-gray-500">Нет сохранённых ответов.</p>
+  {% endif %}
+
+  <a href="{{ url_for('auth.user_dashboard') }}"
+     class="inline-flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold px-5 py-2 mt-8 rounded-xl transition">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+    В личный кабинет
+  </a>
+</div>
+{% endblock %}

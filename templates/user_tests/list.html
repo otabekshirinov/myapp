@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Тесты{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto pt-8">
+  <h1 class="text-3xl font-bold mb-8 flex items-center gap-3">
+    <svg class="inline-block text-blue-500" width="34" height="34" fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" fill="#3b82f6"/>
+      <path d="M7 13.5L10.5 17L17 10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Доступные тесты
+  </h1>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {% for test in tests %}
+      <div class="bg-white p-6 rounded-2xl shadow hover:shadow-lg transition flex flex-col">
+        <span class="text-xl font-semibold mb-1">{{ test.title }}</span>
+        <span class="text-gray-500 mb-3">{{ test.description or '—' }}</span>
+        {% if test.time_limit %}
+          <span class="inline-block mb-2 text-sm text-blue-700 bg-blue-100 rounded px-2 py-1">
+            Ограничение: {{ test.time_limit }} мин.
+          </span>
+        {% endif %}
+        <a href="{{ url_for('user_tests.ready_test', test_id=test.id) }}"
+           class="mt-auto bg-gradient-to-tr from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white rounded-xl py-2 px-4 font-semibold shadow text-center transition">
+          Пройти тест
+        </a>
+      </div>
+    {% else %}
+      <div class="text-gray-400 col-span-2 py-16 text-center text-xl">
+        Тесты пока не добавлены.
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
